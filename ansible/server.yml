@@ -1,0 +1,115 @@
+- hosts: "Name_serverNode"
+  gather_facts: false
+  become: true
+  
+  vars:
+    env_files: "{{ lookup('fileglob', '../envs/.env.*', wantlist=True) | sort }}"
+
+  tasks:
+    - name: Create app directory
+      file:
+        path: "/home/ubuntu/app"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Clone GitHub repository
+      git:
+        repo: 'https://github.com/cryscham123/simulation_teamwork.git'
+        dest: '/home/ubuntu/app'
+        version: master
+        force: yes
+      become_user: ubuntu
+
+    - name: Install Python dependencies from requirements.txt
+      pip:
+        requirements: "/home/ubuntu/app/requirements.txt"
+
+
+    - name: Copy specific env file to remote instance as .env
+      copy:
+        src: "{{ env_files[ansible_play_hosts.index(inventory_hostname)] }}"
+        dest: "/home/ubuntu/app/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Extract BASE_DATA_PATH from remote .env
+      shell: |
+        grep '^BASE_DATA_PATH=' /home/ubuntu/app/.env | cut -d'=' -f2
+      register: base_data_path_raw
+      changed_when: false
+
+    - name: Set BASE_DATA_PATH fact
+      set_fact:
+        base_data_path: "{{ base_data_path_raw.stdout | trim }}"
+
+    - name: Create BASE_DATA_PATH directory
+      file:
+        path: "/home/ubuntu/app/{{ base_data_path }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy simulation data files to remote
+      copy:
+        src: "data/"
+        dest: "/home/ubuntu/app/{{ base_data_path }}/"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Run simulation Jupyter Notebook
+      shell: /home/ubuntu/.local/bin/jupyter nbconvert --to notebook --execute /home/ubuntu/app/result_ga.ipynb --output /home/ubuntu/app/result_executed.ipynb
+      args:
+        chdir: "/home/ubuntu/app"
+      become_user: ubuntu
+      register: run_notebook
+      async: 72000 # 최대 20시간 대기
+      poll: 10
+
+    - name: Upload results to Google Drive
+      shell: |
+        # 1. Access Token 획득
+        ACCESS_TOKEN=$(curl -s -X POST https://oauth2.googleapis.com/token \
+          -d client_id={{ vault_drive_client_id }} \
+          -d client_secret={{ vault_drive_client_secret }} \
+          -d refresh_token={{ vault_drive_refresh_token }} \
+          -d grant_type=refresh_token | jq -r .access_token)
+
+        # 2. ga결과/ 폴더 내 파일 순회하며 신규 업로드
+        FOLDER_ID="{{ vault_google_drive_folder_id }}"
+        
+        # 만약 ga결과 디렉토리가 없거나 비어 있다면 업로드를 생략
+        if [ -d "/home/ubuntu/app/ga결과" ]; then
+          for FILEPATH in /home/ubuntu/app/ga결과/*; do
+            [ -e "$FILEPATH" ] || continue
+            FILENAME=$(basename "$FILEPATH")
+            
+            if [[ "$FILENAME" == *.csv ]]; then
+              CONTENT_TYPE="text/csv"
+            elif [[ "$FILENAME" == *.html ]]; then
+              CONTENT_TYPE="text/html"
+            else
+              CONTENT_TYPE="application/octet-stream"
+            fi
+            
+            echo "Uploading $FILENAME to Drive..."
+            curl -s -X POST "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -F "metadata={name : '$FILENAME', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
+              -F "file=@$FILEPATH;type=$CONTENT_TYPE"
+          done
+        else
+          echo "ga결과 디렉토리가 존재하지 않습니다."
+        fi
+      args:
+        executable: /bin/bash
+      become_user: ubuntu
+      register: upload_result
+
+    - name: Debug execution output
+      debug:
+        msg: "{{ upload_result.stdout_lines }}"

@@ -1,0 +1,63 @@
+- hosts: all
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Wait for apt locks if any
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      changed_when: false
+
+    - name: Enable universe repository
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+        state: present
+
+    - name: Install required system packages
+      apt:
+        name:
+          - git
+          - python3-pip
+          - python3-setuptools
+          - curl
+          - jq
+          - fonts-nanum
+          - fontconfig
+        update_cache: yes
+        state: present
+
+    - name: Create directory for Noto Sans KR font
+      file:
+        path: /usr/share/fonts/opentype/notosanskr
+        state: directory
+        mode: '0755'
+
+    - name: Download Noto Sans CJK KR Regular font
+      get_url:
+        url: https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf
+        dest: /usr/share/fonts/opentype/notosanskr/NotoSansCJKkr-Regular.otf
+        mode: '0644'
+
+    - name: Download Noto Sans CJK KR Bold font
+      get_url:
+        url: https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Korean/NotoSansCJKkr-Bold.otf
+        dest: /usr/share/fonts/opentype/notosanskr/NotoSansCJKkr-Bold.otf
+        mode: '0644'
+
+    - name: Update system font cache
+      command: fc-cache -f -v
+
+    - name: Install Python libraries for notebook execution
+      pip:
+        name:
+          - jupyter
+          - nbconvert
+          - ipykernel
+          - pandas
+          - matplotlib
+          - plotly
+          - jinja2
+          - python-dotenv
+          - "markupsafe==2.0.1"
+        state: present
+        extra_args: --user
+      become: no

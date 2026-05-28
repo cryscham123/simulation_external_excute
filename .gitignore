@@ -1,0 +1,9 @@
+**/.terraform/*
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate*
+.terraform_cache/**
+**/*.tfvars
+**/.env
+**/.vault_pass
+envs/.env.*
