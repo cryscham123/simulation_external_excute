@@ -93,8 +93,7 @@ sudo apt-get install -y python3-boto3 python3-botocore
 ### Step 5. 시뮬레이션 구동 AMI 빌드 (최초 1회)
 
 ```bash
-make build_ami
-make provision
+make pre
 ```
 
 - 이거는 처음 1회만 실행하면 된다.
@@ -103,29 +102,19 @@ make provision
 ### Step 6. 시뮬레이션 시작
 
 ```bash
-make start
+make simulation
 ```
 
-* 머신 개수가 늘어난 경우(예: `envs/.env.machine3` 추가), `make start` 시 부족한 만큼 EC2 인스턴스가 동적으로 추가 생성 및 연동되어 동작.
+* 머신 개수가 늘어난 경우(예: `envs/.env.machine3` 추가), 혹은 수정이 일어난 경우 반영.
+- 시뮬레이션 코드가 수정되도 반영
 
-### Step 7. 정지 (비용 절감)
-
-```bash
-make stop
-```
-
-- 시뮬레이션이 모두 끝나 머신들의 작동을 일시 정지시키고 싶을 때 실행한다.
-- AWS 크레딧은 머신을 계속 켜두면 차감된다. 그래서 사용을 안할 때는 정지를 해줘야 한다.
-- 머신을 새로 할당 받는 시간이 있기 때문에 매번 삭제하는 것 보다는 일시정지하는게 낫다.
-
-### Step 8. 인프라 영구 삭제
+### Step 7. 인프라 영구 삭제
 
 ```bash
 make destroy
 ```
 
-- 모든게 다 끝났을 때 완전히 인프라 정리
-- 혹은 우리 simulation 코드가 변경되었을 경우, make destroy로 기존꺼 날리고 다시 make start를 해준다.
+- 앞으로 시뮬레이션 더 실행할 일 없을 때 실행
 
 ## 여담
 
@@ -134,3 +123,8 @@ make destroy
 - 처음에는 각자 데이터 조금씩 바꿔가며 테스트할걸 가정하고 그렇게 설계했었는데 고정된 데이터만 사용한다면 같이 github로 관리하는게 나을 듯
 - 일단은 임시로 ansible/data/ 디렉토리에 넣어놨지만 나중에 simulation 코드로 옮겨서 관리하는게 더 좋아 보임
 - 시뮬레이션이 돌아갈 때는 .env 파일의 BASE_DATA_PATH에 있는 경로로 데이터가 복사되서 돌아가도록 함.
+
+## 여담2
+
+- 현재 이 코드는 master 브랜치 기준의 simulation 코드를 실행함.
+- 만약 다른 브랜치를 원한다면 ansible/server.yml 경로 파일의 Clone GitHub repository 단계에서 branch를 원하는 것으로 수정하면 된다.

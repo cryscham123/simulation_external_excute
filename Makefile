@@ -6,7 +6,7 @@ export
 
 SERVER_INSTANCE_COUNT := $(shell ls envs/.env.* 2>/dev/null | wc -l)
 
-.PHONY: provision deploy all destroy re build_ami stop start
+.PHONY: provision deploy all destroy re build_ami stop start pre simulation
 
 all: provision deploy
 
@@ -46,6 +46,13 @@ start: terraform
 	@echo "Waiting for EC2 instances to boot up..."
 	@sleep 15
 	$(MAKE) deploy
+
+pre: build_ami
+	$(MAKE) provision
+
+simulation:
+	$(MAKE) start || { $(MAKE) stop; exit 1;}
+	$(MAKE) stop
 
 destroy: terraform
 	@TF_VAR_AWS_REGION=$(AWS_REGION) \
