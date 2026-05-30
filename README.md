@@ -107,6 +107,23 @@ make simulation
 
 * 머신 개수가 늘어난 경우(예: `envs/.env.machine3` 추가), 혹은 수정이 일어난 경우 반영.
 - 시뮬레이션 코드가 수정되도 반영
+- 이 명령어는 EC2 인스턴스 안에서 `simulation.service`를 시작한 뒤 종료된다.
+- Codespace를 닫아도 시뮬레이션은 EC2에서 계속 실행된다.
+- 시뮬레이션이 끝나면 결과를 Google Drive에 업로드하고, 업로드 성공한 로컬 결과 파일은 삭제한 뒤 EC2 인스턴스는 자동으로 중지된다.
+
+진행 상태 확인:
+
+```bash
+make simulation-status
+```
+
+로그 확인:
+
+```bash
+make simulation-logs
+```
+
+- 인스턴스가 이미 자동 중지된 뒤에는 상태/로그 명령이 접속할 대상이 없어 실패할 수 있다.
 
 ### Step 7. 인프라 영구 삭제
 

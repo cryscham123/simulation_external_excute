@@ -4,13 +4,30 @@
   tasks:
     - name: Wait for apt locks if any
       shell: |
-        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock >/dev/null 2>&1; do
+          sleep 5
+        done
+      changed_when: false
+
+    - name: Rebuild apt package list cache
+      shell: |
+        rm -rf /var/lib/apt/lists/*
+        mkdir -p /var/lib/apt/lists/partial
+        apt-get clean
+        apt-get update
+      args:
+        executable: /bin/bash
+      register: apt_cache_rebuild
+      retries: 5
+      delay: 10
+      until: apt_cache_rebuild.rc == 0
       changed_when: false
 
     - name: Enable universe repository
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
         state: present
+        update_cache: yes
 
     - name: Install required system packages
       apt:
