@@ -6,4 +6,4 @@
 **/*.tfvars
 **/.env
 **/.vault_pass
-envs/.env.*
+!envs/.env.*
