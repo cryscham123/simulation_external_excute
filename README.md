@@ -145,3 +145,10 @@ make destroy
 
 - 현재 이 코드는 master 브랜치 기준의 simulation 코드를 실행함.
 - 만약 다른 브랜치를 원한다면 ansible/server.yml 경로 파일의 Clone GitHub repository 단계에서 branch를 원하는 것으로 수정하면 된다.
+
+## 여담3
+
+이 레포지토리 업데이트가 있을 때 codespace에서 반영하는 방법
+
+<img width="1036" height="444" alt="image" src="https://github.com/user-attachments/assets/c78a4829-1e01-44b7-a134-5bfcc3fa58ad" />
+
