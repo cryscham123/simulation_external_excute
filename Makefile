@@ -49,6 +49,7 @@ start: terraform
 
 pre: build_ami
 	$(MAKE) provision
+	$(MAKE) stop
 
 simulation:
 	$(MAKE) start || { $(MAKE) stop; exit 1;}
