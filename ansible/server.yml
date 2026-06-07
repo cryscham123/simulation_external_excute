@@ -6,12 +6,6 @@
     env_files: "{{ lookup('fileglob', '../envs/.env.*', wantlist=True) | sort }}"
 
   tasks:
-    - name: Wait for SSH to become available
-      wait_for_connection:
-        delay: 10
-        sleep: 10
-        timeout: 600
-
     - name: Create app directory
       file:
         path: "/home/ubuntu/app"
@@ -28,24 +22,9 @@
         force: yes
       become_user: ubuntu
 
-    - name: Install OS runtime dependencies
-      apt:
-        name:
-          - curl
-          - jq
-        state: present
-        update_cache: true
-
     - name: Install Python dependencies from requirements.txt
       pip:
         requirements: "/home/ubuntu/app/requirements.txt"
-
-    - name: Install notebook runtime dependencies
-      pip:
-        name:
-          - jupyter
-          - "scipy>=1.7.0"
-
 
     - name: Copy specific env file to remote instance as .env
       copy:
