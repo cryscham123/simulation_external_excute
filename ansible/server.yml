@@ -18,13 +18,27 @@
       git:
         repo: 'https://github.com/cryscham123/simulation_teamwork.git'
         dest: '/home/ubuntu/app'
-        version: min
+        version: psh
         force: yes
       become_user: ubuntu
+
+    - name: Install OS runtime dependencies
+      apt:
+        name:
+          - curl
+          - jq
+        state: present
+        update_cache: true
 
     - name: Install Python dependencies from requirements.txt
       pip:
         requirements: "/home/ubuntu/app/requirements.txt"
+
+    - name: Install notebook runtime dependencies
+      pip:
+        name:
+          - jupyter
+          - "scipy>=1.7.0"
 
 
     - name: Copy specific env file to remote instance as .env
@@ -104,8 +118,8 @@
           set -Eeuo pipefail
 
           APP_DIR="/home/ubuntu/app"
-          RESULT_DIR="${APP_DIR}/ga결과"
-          NOTEBOOK="${APP_DIR}/result_ga.ipynb"
+          RESULT_FILE="${APP_DIR}/tuning/composite_rule_result.json"
+          NOTEBOOK="${APP_DIR}/tuning/composite_rule.ipynb"
           OUTPUT_NOTEBOOK="${APP_DIR}/result_executed.ipynb"
           STATUS_DIR="/var/lib/simulation"
           JUPYTER_BIN="/home/ubuntu/.local/bin/jupyter"
@@ -145,6 +159,7 @@
           fi
 
           echo "Starting notebook execution at $(date -Is)"
+          rm -f -- "${RESULT_FILE}" "${OUTPUT_NOTEBOOK}"
           sudo -H -u ubuntu "${JUPYTER_BIN}" nbconvert \
             --to notebook \
             --execute "${NOTEBOOK}" \
@@ -164,41 +179,48 @@
             exit 1
           fi
 
-          if [ -d "${RESULT_DIR}" ]; then
-            found_result_file=0
+          RESULT_FILES=("${OUTPUT_NOTEBOOK}" "${RESULT_FILE}")
 
-            for FILEPATH in "${RESULT_DIR}"/*; do
-              [ -e "${FILEPATH}" ] || continue
-              found_result_file=1
-              FILENAME="$(basename "${FILEPATH}")"
-
-              case "${FILENAME}" in
-                *.csv) CONTENT_TYPE="text/csv" ;;
-                *.html) CONTENT_TYPE="text/html" ;;
-                *) CONTENT_TYPE="application/octet-stream" ;;
-              esac
-
-              METADATA="$(jq -n \
-                --arg name "${FILENAME}" \
-                --arg parent "${DRIVE_FOLDER_ID}" \
-                '{name: $name, parents: [$parent]}')"
-
-              echo "Uploading ${FILENAME} to Google Drive."
-              curl -fsS -X POST "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart" \
-                -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-                -F "metadata=${METADATA};type=application/json;charset=UTF-8" \
-                -F "file=@${FILEPATH};type=${CONTENT_TYPE}"
-              echo
-              rm -f -- "${FILEPATH}"
-              echo "Deleted local uploaded file ${FILEPATH}."
-            done
-
-            if [ "${found_result_file}" -eq 0 ]; then
-              echo "No files found in ${RESULT_DIR}. Skipping upload."
+          for FILEPATH in "${RESULT_FILES[@]}"; do
+            if [ ! -f "${FILEPATH}" ]; then
+              echo "Expected result file ${FILEPATH} does not exist." >&2
+              exit 1
             fi
-          else
-            echo "${RESULT_DIR} does not exist. Skipping upload."
-          fi
+          done
+
+          UPLOAD_INDEX=1
+
+          for FILEPATH in "${RESULT_FILES[@]}"; do
+            FILENAME="$(basename "${FILEPATH}")"
+            EXTENSION=""
+            if [[ "${FILENAME}" == *.* ]]; then
+              EXTENSION=".${FILENAME##*.}"
+            fi
+            UPLOAD_NAME="결과파일${UPLOAD_INDEX}${EXTENSION}"
+
+            case "${FILENAME}" in
+              *.csv) CONTENT_TYPE="text/csv" ;;
+              *.html) CONTENT_TYPE="text/html" ;;
+              *.json) CONTENT_TYPE="application/json" ;;
+              *.ipynb) CONTENT_TYPE="application/x-ipynb+json" ;;
+              *) CONTENT_TYPE="application/octet-stream" ;;
+            esac
+
+            METADATA="$(jq -n \
+              --arg name "${UPLOAD_NAME}" \
+              --arg parent "${DRIVE_FOLDER_ID}" \
+              '{name: $name, parents: [$parent]}')"
+
+            echo "Uploading ${FILENAME} to Google Drive as ${UPLOAD_NAME}."
+            curl -fsS -X POST "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart" \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -F "metadata=${METADATA};type=application/json;charset=UTF-8" \
+              -F "file=@${FILEPATH};type=${CONTENT_TYPE}"
+            echo
+            rm -f -- "${FILEPATH}"
+            echo "Deleted local uploaded file ${FILEPATH}."
+            UPLOAD_INDEX=$((UPLOAD_INDEX + 1))
+          done
 
           echo "Simulation workflow completed at $(date -Is)"
 
