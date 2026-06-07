@@ -6,6 +6,12 @@
     env_files: "{{ lookup('fileglob', '../envs/.env.*', wantlist=True) | sort }}"
 
   tasks:
+    - name: Wait for SSH to become available
+      wait_for_connection:
+        delay: 10
+        sleep: 10
+        timeout: 600
+
     - name: Create app directory
       file:
         path: "/home/ubuntu/app"
