@@ -118,9 +118,12 @@
           set -Eeuo pipefail
 
           APP_DIR="/home/ubuntu/app"
-          RESULT_FILE="${APP_DIR}/tuning/composite_rule_result.json"
-          NOTEBOOK="${APP_DIR}/tuning/composite_rule.ipynb"
-          OUTPUT_NOTEBOOK="${APP_DIR}/result_executed.ipynb"
+          # 이 인스턴스가 맡은 Shapley 태그 (.env 의 SHAPLEY_TAG) — 결과 파일/업로드 이름 고유화
+          TAG="$(grep '^SHAPLEY_TAG=' "${APP_DIR}/.env" 2>/dev/null | head -n1 | cut -d= -f2 | tr -d '[:space:]')"
+          TAG="${TAG:-untagged}"
+          RESULT_FILE="${APP_DIR}/tuning/shapley_results/part_${TAG}.json"
+          NOTEBOOK="${APP_DIR}/tuning/Shapley_cal.ipynb"
+          OUTPUT_NOTEBOOK="${APP_DIR}/result_executed_${TAG}.ipynb"
           STATUS_DIR="/var/lib/simulation"
           JUPYTER_BIN="/home/ubuntu/.local/bin/jupyter"
 
@@ -196,7 +199,9 @@
             if [[ "${FILENAME}" == *.* ]]; then
               EXTENSION=".${FILENAME##*.}"
             fi
-            UPLOAD_NAME="결과파일${UPLOAD_INDEX}${EXTENSION}"
+            # 인스턴스별 고유 파일명 그대로 업로드 (part_01.json, result_executed_01.ipynb …)
+            # → 여러 인스턴스 결과가 Drive 에서 충돌하지 않음
+            UPLOAD_NAME="${FILENAME}"
 
             case "${FILENAME}" in
               *.csv) CONTENT_TYPE="text/csv" ;;
