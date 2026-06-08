@@ -13,6 +13,8 @@
         owner: ubuntu
         group: ubuntu
         mode: '0755'
+      tags:
+        - upload_results
 
     - name: Clone GitHub repository
       git:
@@ -79,6 +81,8 @@
         owner: root
         group: root
         mode: '0700'
+      tags:
+        - drive_credentials
 
     - name: Write Google Drive upload credentials
       copy:
@@ -92,10 +96,12 @@
           DRIVE_REFRESH_TOKEN={{ vault_drive_refresh_token | quote }}
           DRIVE_FOLDER_ID={{ vault_google_drive_folder_id | quote }}
       no_log: true
+      tags:
+        - drive_credentials
 
-    - name: Write simulation runner script
+    - name: Write Google Drive result upload script
       copy:
-        dest: /home/ubuntu/app/run_simulation.sh
+        dest: /home/ubuntu/app/upload_results.sh
         owner: root
         group: root
         mode: '0750'
@@ -105,53 +111,9 @@
 
           APP_DIR="/home/ubuntu/app"
           RESULT_DIR="${APP_DIR}/ga결과"
-          NOTEBOOK="${APP_DIR}/result_ga.ipynb"
-          OUTPUT_NOTEBOOK="${APP_DIR}/result_executed.ipynb"
-          STATUS_DIR="/var/lib/simulation"
-          JUPYTER_BIN="/home/ubuntu/.local/bin/jupyter"
-
-          mkdir -p "${STATUS_DIR}"
-          echo "running" > "${STATUS_DIR}/status"
-          date -Is > "${STATUS_DIR}/started_at"
-          rm -f "${STATUS_DIR}/finished_at"
-
-          finish() {
-            exit_code=$?
-
-            if [ "${exit_code}" -eq 0 ]; then
-              echo "succeeded" > "${STATUS_DIR}/status"
-            else
-              echo "failed:${exit_code}" > "${STATUS_DIR}/status"
-            fi
-
-            date -Is > "${STATUS_DIR}/finished_at"
-            sync || true
-
-            if [ "${SIMULATION_AUTO_STOP:-1}" = "1" ]; then
-              echo "Simulation finished with exit code ${exit_code}. Stopping this EC2 instance."
-              /sbin/shutdown -h now || true
-            fi
-
-            exit "${exit_code}"
-          }
-          trap finish EXIT
 
           source /etc/simulation/drive.env
 
-          cd "${APP_DIR}"
-
-          if [ ! -x "${JUPYTER_BIN}" ]; then
-            JUPYTER_BIN="$(command -v jupyter)"
-          fi
-
-          echo "Starting notebook execution at $(date -Is)"
-          sudo -H -u ubuntu "${JUPYTER_BIN}" nbconvert \
-            --to notebook \
-            --execute "${NOTEBOOK}" \
-            --output "${OUTPUT_NOTEBOOK}" \
-            --ExecutePreprocessor.timeout=-1
-
-          echo "Notebook execution finished at $(date -Is)"
           echo "Requesting Google Drive access token."
           ACCESS_TOKEN="$(curl -fsS -X POST "https://oauth2.googleapis.com/token" \
             --data-urlencode "client_id=${DRIVE_CLIENT_ID}" \
@@ -199,6 +161,66 @@
           else
             echo "${RESULT_DIR} does not exist. Skipping upload."
           fi
+      tags:
+        - upload_results
+
+    - name: Write simulation runner script
+      copy:
+        dest: /home/ubuntu/app/run_simulation.sh
+        owner: root
+        group: root
+        mode: '0750'
+        content: |
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          APP_DIR="/home/ubuntu/app"
+          NOTEBOOK="${APP_DIR}/result_ga.ipynb"
+          OUTPUT_NOTEBOOK="${APP_DIR}/result_executed.ipynb"
+          STATUS_DIR="/var/lib/simulation"
+          JUPYTER_BIN="/home/ubuntu/.local/bin/jupyter"
+
+          mkdir -p "${STATUS_DIR}"
+          echo "running" > "${STATUS_DIR}/status"
+          date -Is > "${STATUS_DIR}/started_at"
+          rm -f "${STATUS_DIR}/finished_at"
+
+          finish() {
+            exit_code=$?
+
+            if [ "${exit_code}" -eq 0 ]; then
+              echo "succeeded" > "${STATUS_DIR}/status"
+            else
+              echo "failed:${exit_code}" > "${STATUS_DIR}/status"
+            fi
+
+            date -Is > "${STATUS_DIR}/finished_at"
+            sync || true
+
+            if [ "${SIMULATION_AUTO_STOP:-1}" = "1" ]; then
+              echo "Simulation finished with exit code ${exit_code}. Stopping this EC2 instance."
+              /sbin/shutdown -h now || true
+            fi
+
+            exit "${exit_code}"
+          }
+          trap finish EXIT
+
+          cd "${APP_DIR}"
+
+          if [ ! -x "${JUPYTER_BIN}" ]; then
+            JUPYTER_BIN="$(command -v jupyter)"
+          fi
+
+          echo "Starting notebook execution at $(date -Is)"
+          sudo -H -u ubuntu "${JUPYTER_BIN}" nbconvert \
+            --to notebook \
+            --execute "${NOTEBOOK}" \
+            --output "${OUTPUT_NOTEBOOK}" \
+            --ExecutePreprocessor.timeout=-1
+
+          echo "Notebook execution finished at $(date -Is)"
+          /home/ubuntu/app/upload_results.sh
 
           echo "Simulation workflow completed at $(date -Is)"
 

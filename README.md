@@ -126,6 +126,28 @@ make simulation-logs
 
 - 인스턴스가 이미 자동 중지된 뒤에는 상태/로그 명령이 접속할 대상이 없어 실패할 수 있다.
 
+Google Drive 토큰만 교체:
+
+```bash
+ansible-vault edit ansible/group_vars/all/vault.yml --vault-password-file=.vault_pass
+make deploy-drive-credentials
+```
+
+- `vault_drive_refresh_token` 값을 새 refresh token으로 바꾼 뒤 실행한다.
+- 이 버전부터 시뮬레이션은 노트북 실행이 끝난 뒤 업로드 직전에 `/etc/simulation/drive.env`를 읽는다. 따라서 새로 시작한 시뮬레이션은 업로드 직전까지 이 명령으로 토큰을 교체할 수 있다.
+- 이전 버전 스크립트로 이미 실행 중인 시뮬레이션은 시작 시점에 읽은 토큰을 계속 사용한다. 그런 인스턴스는 파일만 바꿔도 현재 프로세스에는 반영되지 않는다.
+- 이미 업로드 단계에서 실패해 서비스가 종료된 인스턴스는 결과 파일이 남아 있을 수 있다. 이 경우 노트북을 다시 실행하지 않고 결과만 업로드할 수 있다.
+
+남아 있는 결과만 다시 업로드:
+
+```bash
+make upload-results
+```
+
+- 멈춘 EC2 인스턴스를 다시 켜고, 새 Google Drive credential과 업로드 스크립트만 배포한 뒤 `/home/ubuntu/app/ga결과` 안의 파일만 업로드한다.
+- 업로드 성공 후에는 인스턴스를 다시 중지한다.
+- `simulation.service`가 아직 실행 중이면 부분 결과 업로드를 막기 위해 실패한다.
+
 ### Step 7. 인프라 영구 삭제
 
 ```bash
@@ -152,4 +174,3 @@ make destroy
 이 레포지토리 업데이트가 있을 때 codespace에서 반영하는 방법
 
 <img width="1036" height="444" alt="image" src="https://github.com/user-attachments/assets/c78a4829-1e01-44b7-a134-5bfcc3fa58ad" />
-
